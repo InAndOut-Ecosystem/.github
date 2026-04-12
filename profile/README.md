@@ -4,4 +4,4 @@ Our open-source solution directly addresses the significant **time wasted shoppi
 
 The technical objective is building and deploying our custom service that solves the **Travelling Salesman Problem (TSP)** in the context of our business model.
 
-Complete [documentation](https://docs.google.com/document/d/1HnRcB2SaG4f4QodOaaYZT4r4GYhibqBzA8wdl2zpID0/edit?tab=t.0)
+> Complete [documentation](./../docs/problem.md) may be found in this repository.
