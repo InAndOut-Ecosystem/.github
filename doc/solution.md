@@ -4,22 +4,64 @@
 
 The typical **Customer** workflow for generating an itinerary: he can optionally apply localization filters such as coordinates, a radius-based area lookup, or specific store or brand names to narrow down the search. Next, the user selects a store and chooses the desired products. The system then displays the available offers, with the option to filter and view only the products that are available in the selected store. After making the necessary selections, the user presses the “**Generate Route**”\*\* \*\*button, and the system produces a final image-based graph representing the route.
 
-# APIs
+## Actors
+
+- (Online, not physically present) **Customer**
+  - The actual physical client entering the store
+  - Makes product selections accounting their details, prices and offers
+- **Employee**
+  - His primary responsibility is to manage the location of products (plans the article stand locations in advance, updates them into the system, and finally makes the physical changes required)
+  - Also manages offers and discounts
+- **Store Owner**
+  - Provides the store structure (floors, navigation aisles, etc.) and details (name, operating hours, etc.)
+  - Also manages offers and discounts
+  - The main attribution is to correctly define the store spaces, both in measurements and directions
+- **Brand Owner**
+  - Manages the Brand profile (name, logo, etc.)
+  - Manages the articles registered within his business
+- **System Admin**
+  - Manages product caching and route generations
+
+## Resources
+
+- Provided by the Customer:
+  - **Route** = Optimal in-store navigation path for visiting all the selected articles
+- Provided by the Employee:
+  - **Floor** = Undirected graph having nodes and edges representing a map component of a store
+  - **Node** = Navigation point acting as an intersection between two edges
+  - **Edge** = Navigation aisle open to Customers
+  - **Stand** = Array of shelves alongside an edge where multiple articles can be placed
+- Provided by the Store Owner:
+  - **Article** = the brand-specific commercial definition of a product (Price, Currency, Brand)
+  - **Product** = Simple product record with details like name, category, or vendor
+  - **Store** = physical unit with a brand identity, location, and operating schedule
+  - **Offer** = promotional logic linked to articles or stores
+  - Provided by the Brand Owner:
+    - **Brand** = the legal entity
+
+### Relationships
+
+- 1 Brand <-> 0/∞ Stores
+- 1 Store <-> 0/∞ Floors
+- 1 Floor <-> 0/∞ Nodes
+- 1 Floor <-> 0/∞ Edges
+
+## APIs
 
 To support a "one-click" onboarding experience for Owners, we provide composite operations. When a store registers a new Stand, the system automatically upserts the underlying Product and Article records if they do not already exist.
 
 To satisfy complex intents - such as de-listing an item from a shelf without deleting it from the brand catalog; we expose Lower-Level APIs. Articles and Products exist independently of Stands. Removing a Stand entry does not destroy the Article record, allowing it to be easily re-placed or utilized by other stores of the same brand.
 
-## Services
+### Services
 
-### 1. Route Service
+#### 1. Route Service
 
 - Actors: Customers
 - Resources: Routes
 - **/routes** - POST, GET, DELETE
 - Store and stand selection interface
 
-### 2. Map Service
+#### 2. Map Service
 
 - Actors: Employee
 - Resources: Stands, Floors, Nodes, Edges
@@ -27,7 +69,7 @@ To satisfy complex intents - such as de-listing an item from a shelf without del
 - **/stores/{storeId}/floors** - POST, GET, PUT, DELETE
 - Floor modelling interface
 
-### 3. Business Service
+#### 3. Business Service
 
 - Actors: Brand/Store Owners
 - Resources: Brands, Stores, Offers
@@ -37,7 +79,7 @@ To satisfy complex intents - such as de-listing an item from a shelf without del
 - **/products** - POST, GET, PATCH, DELETE
 - **/offers** - POST, GET, LIST, PATCH, DELETE
 
-## Repositories
+### Repositories
 
 1. InAndOut-API-modelling
 2. InAndOut-Route-Service
@@ -46,60 +88,12 @@ To satisfy complex intents - such as de-listing an item from a shelf without del
 5. InAndOut-Customer-Interface
 6. InAndOut-Mapping-Interface
 
-# Authorization
+## Authorization
 
 The roles with higher ownership should inherit the permissions of those with less. For example a Store Owner should be able to edit the structure of the store.
 
-## Employee/Owner Authentication
+### Authentication
 
-## Resource Deletion
+### Rate Limiting
 
-## Rate limiting
-
-# TSP Caching
-
-This operation is computationally intensive and may generate significant costs. CDN caches avoid expensive recomputations and will be used. The CDN machine could also host a Redis instance.
-
-Challenges:
-
-- CPU Expense: High CPU overhead is required to recompute the same solution repeatedly.
-- Solution Invalidation: Employees might update the store map, invalidating the cached solutions.
-
-Redis Data Structure:
-
-- Key Structure - `tsp:{storeId}:{mappingVersion}:{standsHash}`
-- Value Structure - the actual output of the operation
-
-Hash stand ids algoritms:
-
-```
-1.  Sort: Take the list of Stand ids and sort them numerically: [10, 2, 5] -> [2, 5, 10].
-2.  Stringify: Join the sorted IDs with a delimiter: "2,5,10".
-3.  Hash: Apply a fast hashing algorithm (like MD5 or SHA-1) to the string to produce a fixed-length suffix: a1b2c3d4.
-```
-
-Example:
-
-`tsp:101:v4:a1b2c3d4` =
-```json
-[
-  [
-    { "id": 1, "name": "Entrance" },
-    { "id": 12, "name": "Aisle 1" }
-  ],
-  [
-    { "id": 12, "name": "Aisle 1" },
-    { "id": 45, "name": "Milk Stand" }
-  ]
-]
-```
-
-# References
-
-- [https://petstore3.swagger.io/](https://petstore3.swagger.io/)
-- [https://dbdiagram.io/d/InAndOut-693154e7d6676488ba8f6f4d](https://dbdiagram.io/d/InAndOut-693154e7d6676488ba8f6f4d)
-- [https://github.com/apache/commons-math/blob/master/commons-math-examples/examples-sofm/tsp/src/main/java/org/apache/commons/math4/examples/sofm/tsp/TravellingSalesmanSolver.java](https://github.com/apache/commons-math/blob/master/commons-math-examples/examples-sofm/tsp/src/main/java/org/apache/commons/math4/examples/sofm/tsp/TravellingSalesmanSolver.java)
-- [https://github.com/TheAlgorithms/Java/blob/master/src/main/java/com/thealgorithms/graph/TravelingSalesman.java](https://github.com/TheAlgorithms/Java/blob/master/src/main/java/com/thealgorithms/graph/TravelingSalesman.java)
-- [https://github.com/swagger-api/swagger-petstore/blob/master/src/main/resources/openapi.yaml](https://github.com/swagger-api/swagger-petstore/blob/master/src/main/resources/openapi.yaml)
-- [https://github.com/aws/aws-parallelcluster/blob/e6e636ac3550d7a2aabf10ee0245f0ddc9bdc5af/api/spec/smithy/model/parallelcluster.smithy#L8](https://github.com/aws/aws-parallelcluster/blob/e6e636ac3550d7a2aabf10ee0245f0ddc9bdc5af/api/spec/smithy/model/parallelcluster.smithy#L8)
-- [https://dev.routific.com/use-cases/travelling-salesman-problem](https://dev.routific.com/use-cases/travelling-salesman-problem)
+### Resource Deletion

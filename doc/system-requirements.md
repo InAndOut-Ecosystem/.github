@@ -18,6 +18,8 @@
 
 ## Scalability Requirements
 
+### Architecture
+
 Any information should be available for anyone in the world but region specific information should be loaded faster for those in proximity.
 
 The architecture of the system, specific to a particular region (e.g. us-east-1): ![Architecture Diagram](./InAndOut.drawio.png)
@@ -40,54 +42,51 @@ The API Gateway does what its name says: service orientated traffic distribution
 
 Some other concerns addressed by either Region Gateway or API Gateway:
 
-- authentication (Employees, Owners)
-- rate limiting
-- monitoring
+- Authentication
+- Rate Limiting
+- Monitoring
 
 #### 4. Load Balancer
 
 Before finally hitting our service server, a load balancer will be placed in front of it to ensure no deployment is overwhelmed. Since the routing is the main feature of our system and it is computationally expensive, multiple instances of `Route Service` are expected to be accepting requests.
 
-# Actors
+### TSP Caching
 
-- (Online, not physically present) **Customer**
-  - The actual physical client entering the store
-  - Makes product selections accounting their details, prices and offers
-- **Employee**
-  - His primary responsibility is to manage the location of products (plans the article stand locations in advance, updates them into the system, and finally makes the physical changes required)
-  - Also manages offers and discounts
-- **Store Owner**
-  - Provides the store structure (floors, navigation aisles, etc.) and details (name, operating hours, etc.)
-  - Also manages offers and discounts
-  - The main attribution is to correctly define the store spaces, both in measurements and directions
-- **Brand Owner**
-  - Manages the Brand profile (name, logo, etc.)
-  - Manages the articles registered within his business
-- **System Admin**
-  - Manages product caching and route generations
+This operation is computationally intensive and may generate significant costs. CDN caches avoid expensive recomputations and will be used. The CDN machine could also host a Redis instance.
 
-# Resources
+Challenges:
 
-## System resources
+- CPU Expense: High CPU overhead is required to recompute the same solution repeatedly.
+- Solution Invalidation: Employees might update the store map, invalidating the cached solutions.
 
-- Provided by the Customer:
-  - **Route** = Optimal in-store navigation path for visiting all the selected articles
-- Provided by the Employee:
-  - **Floor** = Undirected graph having nodes and edges representing a map component of a store
-  - **Node** = Navigation point acting as an intersection between two edges
-  - **Edge** = Navigation aisle open to Customers
-  - **Stand** = Array of shelves alongside an edge where multiple articles can be placed
-- Provided by the Store Owner:
-  - **Article** = the brand-specific commercial definition of a product (Price, Currency, Brand)
-  - **Product** = Simple product record with details like name, category, or vendor
-  - **Store** = physical unit with a brand identity, location, and operating schedule
-  - **Offer** = promotional logic linked to articles or stores
-  - Provided by the Brand Owner:
-    - **Brand** = the legal entity
+Redis Data Structure:
 
-## Relationships
+- Key Structure - `tsp:{storeId}:{mappingVersion}:{standsHash}`
+- Value Structure - the actual output of the operation
 
-- 1 Brand <-> 0/∞ Stores
-- 1 Store <-> 0/∞ Floors
-- 1 Floor <-> 0/∞ Nodes
-- 1 Floor <-> 0/∞ Edges
+Hash stand ids algoritms:
+
+```
+1.  Sort: Take the list of Stand ids and sort them numerically: [10, 2, 5] -> [2, 5, 10].
+2.  Stringify: Join the sorted IDs with a delimiter: "2,5,10".
+3.  Hash: Apply a fast hashing algorithm (like MD5 or SHA-1) to the string to produce a fixed-length suffix: a1b2c3d4.
+```
+
+Example:
+
+`tsp:101:v4:a1b2c3d4` =
+
+```json
+{
+  "routeId": "9426b826-1f72-449c-9b95-d9c5c7d88274",
+  "storeId": "2d4ec91c-cd88-4138-bfa7-f42773b5a11c",
+  "mappingVersion": "1",
+  "standIdList": [
+    "20c423f3-b8d6-454b-8c3c-94f0a7a66a78",
+    "7dc2a857-e33f-4314-bf74-6d33c13d8fb7",
+    "7b8facca-2bc7-414b-ace8-45edc72a3220",
+    "801a699c-9720-4a4c-9298-2e07b5e241f2"
+  ],
+  "solutionList": []
+}
+```
