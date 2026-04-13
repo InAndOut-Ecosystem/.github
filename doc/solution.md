@@ -19,7 +19,7 @@ To satisfy complex intents - such as de-listing an item from a shelf without del
 - **/routes** - POST, GET, DELETE
 - Store and stand selection interface
 
-### 2. Mapping Service
+### 2. Map Service
 
 - Actors: Employee
 - Resources: Stands, Floors, Nodes, Edges
