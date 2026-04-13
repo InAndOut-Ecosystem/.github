@@ -56,57 +56,31 @@ The roles with higher ownership should inherit the permissions of those with les
 
 ## Rate limiting
 
-# TSP
+# TSP Caching
 
-The final operation in the workflow is computationally intensive and may generate significant costs. To handle this more efficiently, the system could use a POST request that returns a job id instead of processing everything synchronously. Once the job is completed, the client will be able to query and inspect the result using that job identifier.
+This operation is computationally intensive and may generate significant costs. CDN caches avoid expensive recomputations and will be used. The CDN machine could also host a Redis instance.
 
-## Persistence and Caching Strategy
+Challenges:
 
-This issue outlines the data structure, technical challenges, and implementation strategy for managing Traveling Salesperson Problem (TSP) solutions.
+- CPU Expense: High CPU overhead is required to recompute the same solution repeatedly.
+- Solution Invalidation: Employees might update the store map, invalidating the cached solutions.
 
-Each TSP solution object is composed of the following attributes:
+Redis Data Structure:
 
-| Name         | Type             | Description                                                               |
-| ------------ | ---------------- | ------------------------------------------------------------------------- |
-| storeId      | UUID             | Unique identifier for the specific store.                                 |
-| standIds     | List[String]     | The collection of stands included in the optimization.                    |
-| result       | List[List[Node]] | An array of routes containing node sequences to satisfy all requirements. |
-| storeVersion | Integer          | The version snapshot used to generate the solution.                       |
+- Key Structure - `tsp:{storeId}:{mappingVersion}:{standsHash}`
+- Value Structure - the actual output of the operation
 
-The nature of TSP optimization presents three primary challenges:
+Hash stand ids algoritms:
 
-- Computational Expense: High CPU overhead is required to recompute the same solution repeatedly.
-- Storage Footprint: Dwhigh-speed RAM cache (e.g., Redis) for near-instant retrieval.
-- Version Tracking: Every cached solution is tagged with a storeVersion.
-
-1.  Request: Retrieve the current storeVersion and check the cache for the corresponding storeId.
-2.  Validation: \* If cachedVersion == currentVersion: Return the cached solution immediately.
-    - If cachedVersion != currentVersion (or no cache exists): Trigger a recomputation.
-
-## Caching Deterministic Versioning
-
-To store complex TSP solutions in Redis we use a hashing and serialization pattern. This ensures that the same set of stands on a specific floor layout always maps to the same pre-computed result.
-
-## 1. Key Structure
-
-The key must be unique to the layout version and the specific set of stands requested.
-
-Format: tsp:{storeId}:{mappingVersion}:{standsHash}
-
-### StandsHash Generation
-
-To ensure the key remains the same regardless of the order in which the user selects the stands, follow this deterministic process:
-
-1.  Sort: Take the list of Stand IDs and sort them numerically: [10, 2, 5] -> [2, 5, 10].
+```
+1.  Sort: Take the list of Stand ids and sort them numerically: [10, 2, 5] -> [2, 5, 10].
 2.  Stringify: Join the sorted IDs with a delimiter: "2,5,10".
 3.  Hash: Apply a fast hashing algorithm (like MD5 or SHA-1) to the string to produce a fixed-length suffix: a1b2c3d4.
+```
 
-## 2. Value Structure (JSON)
+Example:
 
-Since the value is a list of node lists (solutions), we serialize the entire collection into a single JSON string before storing it in Redis.
-
-Example value for key: tsp:101:v4:a1b2c3d4
-
+`tsp:101:v4:a1b2c3d4` =
 ```json
 [
   [
@@ -119,10 +93,6 @@ Example value for key: tsp:101:v4:a1b2c3d4
   ]
 ]
 ```
-
-Websockets for when the job is done?
-
-OpenPriceMap? Queries for multiple store shopping upon?
 
 # References
 
